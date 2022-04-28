@@ -16,7 +16,7 @@ var (
 	BaseUrlFlex   = "https://internal-api.mercadolibre.com/shipping/selfservice/adoption/search"
 	BaseUrlWh     = "https://internal-api.mercadolibre.com/shipping/working-hours"
 	BaseUrlUpdate = "https://internal-api.mercadolibre.com/test/shipping/working-hours/services/"
-	SITES         = []string{"MLA", "MLB", "MLC", "MLU", "MLM", "MCO"}
+	SITES         = []string{"MLA", "MLB", "MLC", "MLU", "MLM", "MCO", "MPE"}
 )
 
 type IUpdateService interface {
@@ -40,13 +40,14 @@ func NewPS(client RustyClient) IUpdateService {
 func (u *UpdateService) UpdateWh(ctx context.Context, process bool) string {
 	fmt.Println("--------------START------------------")
 	workingHours := fectServiceWH(u.Client, ctx)
+	fmt.Println("Tamaño:", len(workingHours))
 	serviceBySite := fecthServiceFlex(u.Client, ctx)
 	idsToProcess := sortDataProcessed(workingHours, serviceBySite)
 	return processData(u.Client, ctx, process, idsToProcess)
 }
 
 func fectServiceWH(Client RustyClient, ctx context.Context) []int {
-	fmt.Println("Trallendo servicios WH")
+	fmt.Println("Trayendo servicios WH")
 	cl, err := rusty.NewEndpoint(Client, BaseUrlWh, rusty.WithHeader("Content-Type", "application/json"))
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -73,7 +74,7 @@ func fectServiceWH(Client RustyClient, ctx context.Context) []int {
 }
 
 func fecthServiceFlex(Client RustyClient, ctx context.Context) map[string][]int {
-	fmt.Println("Trallendo servicios flex")
+	fmt.Println("Trayendo servicios flex")
 	m := make(map[string][]int)
 	for _, site := range SITES {
 		object := entity.Request{
@@ -149,12 +150,16 @@ func sortDataProcessed(workingHours []int, serviceBySite map[string][]int) []int
 	var idsToProcess []int
 	var idsNotProcess []int
 	for _, id := range workingHours {
+		var contain bool = true
 		for _, site := range serviceBySite {
-			if !contains(site, id) {
-				idsToProcess = append(idsToProcess, id)
-			} else {
-				idsNotProcess = append(idsNotProcess, id)
+			if searchItem(site, id) {
+				contain = false
 			}
+		}
+		if contain {
+			idsToProcess = append(idsToProcess, id)
+		} else {
+			idsNotProcess = append(idsNotProcess, id)
 		}
 	}
 	fmt.Println("A procesar:", len(idsToProcess))
@@ -162,9 +167,9 @@ func sortDataProcessed(workingHours []int, serviceBySite map[string][]int) []int
 	return idsToProcess
 }
 
-func contains(id []int, searchterm int) bool {
-	i := sort.SearchInts(id, searchterm)
-	return i < len(id) && id[i] == searchterm
+func searchItem(data []int, searchterm int) bool {
+	i := sort.SearchInts(data, searchterm)
+	return i < len(data) && data[i] == searchterm
 }
 
 func processData(Client RustyClient, ctx context.Context, process bool, idsToProcess []int) string {
